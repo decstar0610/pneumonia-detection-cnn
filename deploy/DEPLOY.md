@@ -1,90 +1,83 @@
 # PneumoScan — Deployment (Phase 8)
 
-Public demo = **HF Docker Space** (API, model baked in) + **Vercel** (React frontend).
-You create the accounts and authenticate; the scripts/configs here do the rest.
+Public demo = **Render** (API, Docker) + **Vercel** (React frontend).
+The trained model lives in a **free HF Hub model repo**
+(<https://huggingface.co/decstzz06/pneumoscan-model>) and is pulled into the API
+image at build time, so nothing large is committed to git.
+
+> Note: HF *Docker Spaces* now require paid PRO, so the API moved to Render's free
+> tier. The old `deploy/deploy_hf_space.py` + `deploy/Dockerfile` are kept only for
+> reference if you ever get PRO.
 
 ---
 
-## Part A — API → Hugging Face Docker Space
+## Step 0 — Push the repo to GitHub (both hosts need it)
 
-**Prereqs (you do once):**
-1. Create a free account at <https://huggingface.co/join>.
-2. Create a **WRITE** token at <https://huggingface.co/settings/tokens>.
-3. Log in from this repo:
+The local repo is already initialized and committed on `main`. Create an empty
+GitHub repo (no README), then:
+```
+git remote add origin https://github.com/<you>/pneumonia-detection-cnn.git
+git push -u origin main
+```
+
+---
+
+## Part A — API → Render (free Docker web service)
+
+1. Sign up at <https://render.com> (sign in with GitHub).
+2. **New → Blueprint**, connect the GitHub repo. Render reads `render.yaml` and
+   provisions the `pneumoscan-api` web service (Docker, free plan). Apply.
+   - The build runs `api/Dockerfile`, which `pip install`s the CPU stack and
+     downloads the model from HF Hub. First build takes several minutes.
+3. When live, the API base URL is `https://pneumoscan-api.onrender.com`
+   (Render shows the exact URL). Verify:
    ```
-   ! ./.venv/Scripts/huggingface-cli.exe login
+   curl https://pneumoscan-api.onrender.com/health
+   # -> {"status":"ok","model_version":"2.0"}
    ```
-   (paste the WRITE token; the `!` prefix runs it in this session so I see the result.)
+   Docs at `/docs`.
 
-**Deploy:**
-```
-./.venv/Scripts/python.exe deploy/deploy_hf_space.py --repo-id <your-username>/pneumoscan-api
-```
-This assembles `deploy/_space_build/` (Dockerfile + README + code + model, LFS-tracked)
-and uploads it as a Docker Space. The Space then builds the image automatically —
-watch the **Logs** tab; first build takes a few minutes (installs tensorflow-cpu).
+> Free tier sleeps after ~15 min idle; the first request after a nap cold-starts
+> (~50s). Fine for a demo — the frontend shows a spinner.
 
-- Dry run without uploading: add `--stage-only`.
-- Private Space: add `--private`.
-
-**API base URL** once the build is green:
-```
-https://<your-username>-pneumoscan-api.hf.space
-```
-Verify:
-```
-curl https://<your-username>-pneumoscan-api.hf.space/health
-# -> {"status":"ok","model_version":"2.0"}
-```
-Interactive docs: append `/docs` to that URL.
+**Manual alternative (no Blueprint):** New → Web Service → connect repo →
+Runtime **Docker**, Dockerfile path `./api/Dockerfile`, context `.`, plan Free,
+health check `/health`, add env var `CORS_ALLOW_ORIGINS=*`.
 
 ---
 
 ## Part B — Frontend → Vercel
 
-**Prereqs:** account at <https://vercel.com/signup> (sign in with GitHub is easiest).
+1. Sign up at <https://vercel.com/signup> (GitHub sign-in).
+2. **New Project** → import the repo. Set:
+   - **Root Directory** = `frontend`  (Vercel reads `frontend/vercel.json`; Vite auto-detected)
+   - **Environment Variable**: `VITE_API_URL` = your Render URL (no trailing slash),
+     e.g. `https://pneumoscan-api.onrender.com`
+3. Deploy → you get `https://<project>.vercel.app`.
 
-**Option 1 — Vercel dashboard (no CLI):**
-1. Push this repo to GitHub, then **New Project** → import it.
-2. Set **Root Directory** = `frontend` (Vercel reads `frontend/vercel.json`; framework = Vite auto-detected).
-3. Add an **Environment Variable**:
-   - `VITE_API_URL` = `https://<your-username>-pneumoscan-api.hf.space`  (no trailing slash)
-4. Deploy. Vercel gives you `https://<project>.vercel.app`.
-
-**Option 2 — Vercel CLI:**
-```
-cd frontend
-npx vercel --prod -e VITE_API_URL=https://<your-username>-pneumoscan-api.hf.space
-```
-
-> `VITE_API_URL` is read at **build** time (baked into the bundle). If you change it,
-> trigger a redeploy.
+> `VITE_API_URL` is baked in at **build** time. If you change it, redeploy.
 
 ---
 
 ## Part C — Lock down CORS (after both URLs exist)
 
-The API defaults to `CORS_ALLOW_ORIGINS=*`. Tighten it to your Vercel origin:
-
-1. On the HF Space → **Settings → Variables and secrets** → add:
-   - `CORS_ALLOW_ORIGINS` = `https://<project>.vercel.app`
-2. The Space restarts. (Comma-separate if you have a preview + prod origin.)
+The API defaults to `CORS_ALLOW_ORIGINS=*`. Tighten it:
+- Render → your service → **Environment** → set `CORS_ALLOW_ORIGINS` =
+  `https://<project>.vercel.app` → save (service redeploys).
 
 ---
 
 ## Part D — Verify end-to-end
 
-1. `GET /health` on the Space returns `{"status":"ok",...}`.
-2. Open the Vercel URL, upload a chest X-ray (e.g. one from
-   `data/raw/kaggle_chest_xray/chest_xray/test/`), confirm a prediction + triage
-   badge + Grad-CAM overlay render, cross-origin, with no CORS error in the console.
-3. Note both URLs for the README hero/badges (Phase 9).
+1. `GET /health` on Render returns `{"status":"ok",...}`.
+2. Open the Vercel URL, upload a chest X-ray from
+   `data/raw/kaggle_chest_xray/chest_xray/test/`, confirm the prediction + triage
+   badge + Grad-CAM overlay render with no CORS error in the browser console.
+3. Save both URLs for the README badges (Phase 9).
 
 ---
 
-## Notes / gotchas
-- HF free Spaces sleep after inactivity; first request after a nap is a cold start.
-- The model (37 MB `.keras`) is baked into the image via Git LFS — no separate HF
-  model repo is required. (If you later want a standalone model card on the Hub,
-  that's an optional extra, not needed for the demo.)
-- Rerun `deploy_hf_space.py` any time to push updates; it commits over the same Space.
+## Updating later
+- **Code**: `git push` → Render and Vercel auto-redeploy from `main`.
+- **Model**: re-upload to the HF Hub model repo, then trigger a Render rebuild
+  (Manual Deploy → Clear build cache & deploy) so it re-downloads.
