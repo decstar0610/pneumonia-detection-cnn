@@ -1,0 +1,36 @@
+# PneumoScan — Python dependencies
+# Recommended: Python 3.11 or 3.12 in a fresh venv (TensorFlow does not yet support 3.13/3.14).
+#   py -3.11 -m venv .venv  &&  .\.venv\Scripts\Activate.ps1  &&  pip install -r requirements.txt
+
+# --- Core DL / training ---
+tensorflow==2.16.1            # Keras 3 backend; DenseNet121/ResNet50 transfer learning
+keras==3.3.3
+
+# --- Data / numerics ---
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.5.1          # splits, metrics, calibration curve, ROC/PR
+pillow==10.4.0
+opencv-python==4.10.0.84     # Grad-CAM overlay compositing
+pydicom==2.4.4               # read RSNA DICOMs (external validation)
+
+# --- Calibration ---
+netcal==1.3.5                # temperature scaling + ECE (reliability diagrams)
+
+# --- Visualization (Tier-1 dashboard) ---
+matplotlib==3.8.4            # 3.9.1 win_amd64 wheel had a broken MinGW build (missing libgcc); 3.8.4 is self-contained
+seaborn==0.13.2
+plotly==5.23.0               # interactive dashboard HTML export
+
+# --- API (Phase 6) ---
+fastapi==0.112.1
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9      # multipart image upload for /predict
+
+# --- Data download / tooling ---
+kaggle==1.6.17
+tqdm==4.66.5
+
+# --- Notebooks (EDA / training / evaluation) ---
+jupyter==1.0.0
+ipykernel==6.29.5

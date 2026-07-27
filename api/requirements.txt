@@ -1,0 +1,11 @@
+# PneumoScan API — runtime deps (CPU inference only; no training stack needed)
+tensorflow-cpu==2.16.1
+keras==3.3.3
+numpy==1.26.4
+pillow==10.4.0
+matplotlib==3.8.4      # Grad-CAM 'jet' colormap for the overlay
+scipy==1.13.1          # (calibration apply_temperature pulls sklearn/scipy transitively)
+scikit-learn==1.5.1
+fastapi==0.112.1
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9

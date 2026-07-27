@@ -1,0 +1,2 @@
+# Trained model artifacts (Keras SavedModel) + temperature.json + threshold.json.
+# Large weights are gitignored; push the final artifact to the Hugging Face Hub instead.

@@ -1,0 +1,2 @@
+# Phase 1 writes splits.csv here (the stratified 80/10/10 manifest). This file IS committed
+# so the re-split is reproducible; the raw images are not.

@@ -1,0 +1,17 @@
+# Render Blueprint — PneumoScan API (free Docker web service).
+# In the Render dashboard: New > Blueprint, connect this GitHub repo; Render reads
+# this file. The model is pulled from HF Hub at build time (see api/Dockerfile).
+services:
+  - type: web
+    name: pneumoscan-api
+    runtime: docker
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      # Tighten to your Vercel origin once the frontend is deployed, e.g.
+      #   https://pneumoscan.vercel.app
+      - key: CORS_ALLOW_ORIGINS
+        value: "*"

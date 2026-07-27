@@ -1,0 +1,50 @@
+# --- Data: never commit raw images ---
+data/raw/**
+!data/raw/**/.gitkeep
+data/processed/**
+!data/processed/.gitkeep
+# ...but DO keep the re-split manifest (reproducibility)
+!data/splits/
+!data/splits/.gitkeep
+!data/splits/splits.csv
+
+# --- Models: large weights go to Hugging Face Hub, not git ---
+models/**
+!models/.gitkeep
+*.h5
+*.keras
+*.pb
+saved_model/
+
+# --- Generated assets (optional: comment out if you want them committed for README) ---
+# assets/**
+# !assets/.gitkeep
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# --- Deploy staging (assembled by deploy/deploy_hf_space.py) ---
+deploy/_space_build/
+
+# --- Local pip cache/temp redirected off C: for big installs ---
+.pipcache/
+.piptmp/
+
+# --- Secrets / env ---
+.env
+kaggle.json
+
+# --- OS ---
+.DS_Store
+Thumbs.db
