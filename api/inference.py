@@ -65,6 +65,31 @@ def _dummy_png() -> bytes:
     return buf.getvalue()
 
 
+def _resize_bilinear(arr, size: int):
+    """Bilinear resize matching `tf.image.resize(..., antialias=False)` (half-pixel centers).
+
+    This MUST match training/evaluation preprocessing (src/data.py uses tf.image.resize).
+    PIL's BILINEAR antialiases when downscaling, which is a different operator: swapping
+    it in cost 15 true positives on the internal test set (sensitivity 0.944 -> 0.909,
+    24/586 decisions flipped) even though per-image probability differences looked small.
+    Kept in NumPy so the serving runtime stays TensorFlow- and OpenCV-free.
+    """
+    h, w = arr.shape[:2]
+
+    def axis(n_out: int, n_in: int):
+        src = np.clip((np.arange(n_out) + 0.5) * (n_in / n_out) - 0.5, 0, n_in - 1)
+        lo = np.floor(src).astype(int)
+        return lo, np.minimum(lo + 1, n_in - 1), (src - lo).astype("float32")
+
+    y0, y1, wy = axis(size, h)
+    x0, x1, wx = axis(size, w)
+    top_left, top_right = arr[y0][:, x0], arr[y0][:, x1]
+    bot_left, bot_right = arr[y1][:, x0], arr[y1][:, x1]
+    top = top_left + (top_right - top_left) * wx[None, :, None]
+    bot = bot_left + (bot_right - bot_left) * wx[None, :, None]
+    return top + (bot - top) * wy[:, None, None]
+
+
 def _preprocess(image_bytes: bytes):
     """Decode bytes -> (model_input 224x224x3 normalised, display_gray 224x224 in [0,1])."""
     from PIL import Image, UnidentifiedImageError
@@ -73,8 +98,8 @@ def _preprocess(image_bytes: bytes):
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     except (UnidentifiedImageError, OSError) as e:
         raise ValueError(f"Could not decode image: {e}") from e
-    img = img.resize((C.IMG_SIZE, C.IMG_SIZE), Image.BILINEAR)
-    disp = (np.asarray(img, dtype="float32") / 255.0)          # (224,224,3) in [0,1]
+    resized = _resize_bilinear(np.asarray(img, dtype="float32"), C.IMG_SIZE)
+    disp = (resized / 255.0).astype("float32")                 # (224,224,3) in [0,1]
     model_in = ((disp - _S["mean"]) / _S["std"]).astype("float32")
     return model_in, disp.mean(axis=-1)
 
