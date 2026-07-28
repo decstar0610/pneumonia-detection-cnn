@@ -45,6 +45,9 @@ deploy/_space_build/
 .env
 kaggle.json
 
+# --- Throwaway probes and one-off scripts ---
+scratchpad/
+
 # --- OS ---
 .DS_Store
 Thumbs.db
