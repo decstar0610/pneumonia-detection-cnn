@@ -1,5 +1,11 @@
 # PneumoScan — Phased Build Plan
 
+> **Status: all phases complete and deployed (2026-07-28).** This document is the plan as
+> written *before* the work, kept intact as a record of intent. Phase status is tracked in the
+> map below, and what actually diverged from the plan is recorded in
+> [How it actually went](#how-it-actually-went) at the bottom. Where the two disagree, the
+> shipped code and [README.md](README.md) are authoritative.
+
 A concrete, phase-by-phase execution plan derived from `PRD_Pneumonia_Detection (1).md`.
 Each phase lists: **objective**, **tasks**, **files produced**, **deliverables**, and **exit criteria**
 (you don't leave a phase until its exit criteria are met).
@@ -13,20 +19,21 @@ calibration, honest uncertainty), not raw accuracy. Protect the differentiator w
 
 ## Phase map at a glance
 
-| Phase | Name | PRD refs | Week | Priority |
-|-------|------|----------|------|----------|
-| 0 | Project setup & scaffolding | §10.1 | Wk1 | Must |
-| 1 | Data pipeline & EDA | §5 | Wk1 | Must |
-| 2 | Model & training | §6.1–6.2 | Wk1 | Must |
-| 3 | Internal evaluation & threshold tuning | §4 | Wk1→2 | Must |
-| 4 | The differentiators | §3, §6.3 | Wk2 | **Protect** |
-| 5 | Tier-1 evaluation dashboard | §7.5 | Wk2→3 | Must |
-| 6 | FastAPI backend | §7.2–7.3 | Wk2 | Must |
-| 7 | React frontend + Tier-2 report | §7.5 | Wk3 | High/Opt |
-| 8 | Deployment | §8 | Wk3 | Must |
-| 9 | Docs: README, model card, blog | §7.5, §10 | Wk3 | Must |
+| Phase | Name | PRD refs | Week | Priority | Status |
+|-------|------|----------|------|----------|--------|
+| 0 | Project setup & scaffolding | §10.1 | Wk1 | Must | ✅ done |
+| 1 | Data pipeline & EDA | §5 | Wk1 | Must | ✅ done |
+| 2 | Model & training | §6.1–6.2 | Wk1 | Must | ✅ done |
+| 3 | Internal evaluation & threshold tuning | §4 | Wk1→2 | Must | ✅ done |
+| 4 | The differentiators | §3, §6.3 | Wk2 | **Protect** | ✅ done — all 5 sub-parts |
+| 5 | Tier-1 evaluation dashboard | §7.5 | Wk2→3 | Must | ✅ done |
+| 6 | FastAPI backend | §7.2–7.3 | Wk2 | Must | ✅ done |
+| 7 | React frontend + Tier-2 report | §7.5 | Wk3 | High/Opt | ✅ done — Tier-2 built after all |
+| 8 | Deployment | §8 | Wk3 | Must | ✅ live (Render + Vercel + HF Hub) |
+| 9 | Docs: README, model card, blog | §7.5, §10 | Wk3 | Must | ✅ docs done · ⬜ hero GIF, blog |
 
 Scope-cut ladder (from §8.1) is honored in each phase's "if behind" note.
+**No level of the ladder was ultimately needed** — see [How it actually went](#how-it-actually-went).
 
 ---
 
@@ -274,6 +281,49 @@ model card honest and complete.
 - Never let external metrics "look better" — the honest gap **is** the deliverable (§11).
 - Keep the framing disciplined: triage decision-support, **not** an FDA diagnostic device.
 
-## Immediate next action
-Provide the **local Kaggle dataset path** (and RSNA path if you have it) so Phase 1 can start.
-Then I'll execute Phase 0 (scaffold) and Phase 1 (re-split + EDA) first.
+---
+
+## How it actually went
+
+Everything above was written before any code existed. This section records where reality
+diverged — the plan is left unedited so the two can be compared.
+
+### Went to plan
+Phases 0–6 landed essentially as written. Phase 4 (the protected differentiator work) was
+completed in full: all five sub-parts, none cut. Sensitivity hit **0.942** internal against
+the ≥ 0.92 target, and the external gap the PRD predicted showed up exactly as feared.
+
+### Diverged
+
+| Plan said | What happened | Why |
+|---|---|---|
+| Fine-tune the top conv block for the final model | **The frozen-backbone stage won**; fine-tuning never beat it | Reported honestly rather than hidden — the plan assumed fine-tuning would help |
+| Tier-2 Model Report tab is "optional under pressure" | **Built in full**, and it is now the strongest part of the demo | Time allowed a second frontend pass; the threshold explorer turned out to be the best single artifact in the project |
+| Plotly *or* Recharts for the report | **Recharts** | Smaller bundle; the report is a lazy-loaded chunk |
+| Backend on HF Spaces (Docker) *or* Render | **Render** | HF Docker Spaces began requiring a paid PRO subscription mid-build; only static Spaces stayed free |
+| TensorFlow in the serving container | **onnxruntime + a NumPy head**, TF-free | TF needs ~600–700 MB at startup; Render's free tier caps at 512 MB. Validated numerically identical (pred \|Δ\| ~1e-8, Grad-CAM corr 1.0); footprint fell to 134 MB |
+| Frontend is a Vite + Tailwind React app | **Rebuilt in TypeScript** as a second pass, with a sample gallery of held-out studies | The first version worked but read as a generic demo; the rebuild targets a clinical-AI reviewer |
+
+### Not in the plan at all
+
+- **A train/serve preprocessing skew.** Dropping TensorFlow meant reimplementing the resize, and
+  `PIL.Image.resize` antialiases where `tf.image.resize` does not. The served model was running
+  ~3.5 sensitivity points below the evaluated one — **15 lost true positives** — until it was
+  caught by re-scoring the whole test split through the serving path. Documented in
+  [README.md](README.md) and [MODEL_CARD.md](MODEL_CARD.md). The plan's "smoke-test `/predict`
+  end to end" exit criterion was met and still missed this; a smoke test proves the pipe is
+  connected, not that it computes the same function.
+- `src/export_report.py` — exports real evaluation data to the frontend so the Model Report tab
+  contains no hand-copied numbers.
+- Four held-out test studies bundled as a sample gallery, one of them deliberately inside the
+  abstention band, so a visitor without an X-ray still sees the model decline to decide.
+
+### Still open (all optional — none block the demo)
+
+- ⬜ **From-scratch CNN baseline** (Phase 2 optional, above) — never built. The transfer-learning
+  result stands on its own, but a baseline would have made the "why pretrained" argument concrete.
+- ⬜ **Hero GIF** for the README (§7.5 wanted a screen recording above the fold).
+- ⬜ **Blog post** — *"My medical AI model looked great — until I tested it on a different
+  hospital's data."* The material now exists in the README's external-validation section.
+
+Current state, live URLs and remaining follow-ups: [README.md](README.md).

@@ -2,11 +2,24 @@
 ## PneumoScan — A Chest X-Ray Pneumonia Triage System That Knows Its Own Limits
 
 **Version:** 2.0
-**Status:** Draft → In Development
-**Owner:** [Your Name]
+**Status:** ✅ **Shipped** — built, deployed and documented as of 2026-07-28
+**Owner:** Priyanka M
 **Target Employer Context:** Fractal Analytics / Qure.ai (medical imaging AI)
 **Timeline:** 3 weeks (focused)
-**Live Demo:** FastAPI backend + React frontend, cloud-deployed
+**Live Demo:** https://pneumonia-detection-cnn-chi.vercel.app
+**API:** https://pneumoscan-api-b76x.onrender.com · **Model:** https://huggingface.co/decstzz06/pneumoscan-model
+
+> **This document is the requirements spec as written before the build, kept intact.**
+> Every *required* feature shipped, and the §8.1 scope-cut ladder was **never descended** —
+> the build landed at level 1 (full React UI + cloud FastAPI + all four analysis features +
+> Grad-CAM), including the Tier-2 Model Report tab that §8.1 listed as the first thing to drop.
+> Three **optional** extras were not done: a from-scratch CNN baseline for comparison, the
+> README hero GIF, and the blog post.
+> Where the spec and the shipped system differ (backend host, serving runtime, chart library),
+> the deviations and their reasons are recorded in
+> [BUILD_PLAN.md § How it actually went](BUILD_PLAN.md#how-it-actually-went).
+> For current state, measured results and limitations, read [README.md](README.md) and
+> [MODEL_CARD.md](MODEL_CARD.md) — those are authoritative, not this file.
 
 ---
 
