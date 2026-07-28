@@ -43,7 +43,7 @@ git push -u origin main
 
 **Manual alternative (no Blueprint):** New → Web Service → connect repo →
 Runtime **Docker**, Dockerfile path `./api/Dockerfile`, context `.`, plan Free,
-health check `/health`, add env var `CORS_ALLOW_ORIGINS=*`.
+health check `/health`, and set the two CORS env vars from Part C.
 
 ---
 
@@ -62,9 +62,35 @@ health check `/health`, add env var `CORS_ALLOW_ORIGINS=*`.
 
 ## Part C — Lock down CORS (after both URLs exist)
 
-The API defaults to `CORS_ALLOW_ORIGINS=*`. Tighten it:
-- Render → your service → **Environment** → set `CORS_ALLOW_ORIGINS` =
-  `https://<project>.vercel.app` → save (service redeploys).
+**Already done for this deployment** — `render.yaml` pins both values. This section is
+for redeploying elsewhere.
+
+The API defaults to `CORS_ALLOW_ORIGINS=*` when unset, which lets any page on the web call
+the inference endpoint from a visitor's browser. Two env vars tighten it:
+
+| Var | Value | Why |
+|---|---|---|
+| `CORS_ALLOW_ORIGINS` | `https://<project>.vercel.app` | Exact-match list of allowed origins |
+| `CORS_ALLOW_ORIGIN_REGEX` | `^https://<project>-[a-z0-9-]+\.vercel\.app$` | Vercel gives every branch/commit **preview** its own subdomain; the exact list above would block them |
+
+**Anchor the regex** (`^...$`). Without the `$`, `https://<project>-x.vercel.app.evil.com`
+matches and you have reopened the hole you just closed.
+
+If the service was created from the Blueprint, editing `render.yaml` and pushing is enough.
+If you created it manually, set both under Render → your service → **Environment** → save
+(the service redeploys).
+
+**Verify from outside the browser** — a preflight is the honest test:
+
+```bash
+curl -si -X OPTIONS https://<api>.onrender.com/predict \
+  -H "Origin: https://evil.example.com" -H "Access-Control-Request-Method: POST" \
+  | grep -i access-control-allow-origin        # expect: no such header
+
+curl -si -X OPTIONS https://<api>.onrender.com/predict \
+  -H "Origin: https://<project>.vercel.app" -H "Access-Control-Request-Method: POST" \
+  | grep -i access-control-allow-origin        # expect: the origin echoed back, not *
+```
 
 ---
 
