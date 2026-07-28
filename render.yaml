@@ -11,7 +11,11 @@ services:
     region: oregon
     healthCheckPath: /health
     envVars:
-      # Tighten to your Vercel origin once the frontend is deployed, e.g.
-      #   https://pneumoscan.vercel.app
+      # Production frontend origin. Exact match — no wildcard.
       - key: CORS_ALLOW_ORIGINS
-        value: "*"
+        value: "https://pneumonia-detection-cnn-chi.vercel.app"
+      # Vercel gives every branch/commit preview its own generated subdomain, so
+      # the exact-match list above would block them. This admits previews of this
+      # project only, rather than reopening the policy to "*".
+      - key: CORS_ALLOW_ORIGIN_REGEX
+        value: "^https://pneumonia-detection-cnn-[a-z0-9-]+\\.vercel\\.app$"

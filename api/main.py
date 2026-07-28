@@ -26,6 +26,11 @@ ALLOWED = {"image/jpeg", "image/png", "image/jpg", "application/octet-stream"}
 # e.g. CORS_ALLOW_ORIGINS="https://pneumoscan.vercel.app"
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()]
 
+# `allow_origins` is exact-match, which would block Vercel *preview* deployments —
+# every branch and commit preview gets its own generated subdomain. Set
+# CORS_ALLOW_ORIGIN_REGEX to admit them without widening the policy back to "*".
+CORS_ORIGIN_REGEX = os.getenv("CORS_ALLOW_ORIGIN_REGEX") or None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,6 +42,7 @@ app = FastAPI(title="PneumoScan API", version=MODEL_VERSION, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,  # set CORS_ALLOW_ORIGINS env var to the frontend origin in production
+    allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_methods=["*"],
     allow_headers=["*"],
 )
