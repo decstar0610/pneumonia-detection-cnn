@@ -1,1 +1,171 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   PneumoScan design tokens — "reading-room console".
+   The five semantic accents are the SAME values as src/viz_style.py, so the
+   live app and the matplotlib figures in the README are one design system.
+   --------------------------------------------------------------------------- */
+@theme {
+  /* Surfaces (dark, achromatic — an X-ray must be the brightest thing here) */
+  --color-ink-900: #0a0e12;
+  --color-ink-850: #0d141b;
+  --color-ink-800: #111820;
+  --color-ink-700: #1a232d;
+  --color-ink-600: #212c38;
+  --color-line: #1f2a35;
+  --color-line-strong: #2c3a48;
+
+  /* Text */
+  --color-hi: #e6edf3;
+  --color-mid: #93a4b3;
+  --color-low: #647686;
+
+  /* Semantic accents — hue only ever encodes state or a data series */
+  --color-clinical: #2c6e9b; /* system accent · internal dataset */
+  --color-clinical-lit: #4ea3d6; /* lit variant for dark surfaces */
+  --color-alert: #d1495b; /* urgent review · external dataset */
+  --color-caution: #e9c46a; /* needs human review · target lines */
+  --color-stable: #2a9d8f; /* routine · normal class */
+  --color-neutral: #6c757d; /* reference lines, chance diagonal */
+
+  /* Type scale */
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --text-label: 0.6875rem; /* 11 — uppercase panel headers, axis labels */
+  --text-label--line-height: 1rem;
+  --text-label--letter-spacing: 0.09em;
+  --text-micro: 0.75rem; /* 12 — disclaimers, meta */
+  --text-micro--line-height: 1.125rem;
+  --text-body: 0.875rem; /* 14 — base */
+  --text-body--line-height: 1.25rem;
+  --text-h2: 1.125rem; /* 18 */
+  --text-h2--line-height: 1.5rem;
+  --text-h1: 1.5rem; /* 24 */
+  --text-h1--line-height: 1.875rem;
+  --text-display: 2rem; /* 32 — the verdict */
+  --text-display--line-height: 2.25rem;
+  --text-metric: 1.875rem; /* 30 — mono metrics */
+  --text-metric--line-height: 2rem;
+
+  /* Instrument panels, not pills */
+  --radius-panel: 6px;
+
+  /* Motion */
+  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-state: cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-scanline: scanline 2.4s linear infinite;
+  --animate-ring: ring 3s var(--ease-state) infinite;
+  --animate-blink: blink 1.6s var(--ease-state) infinite;
+}
+
+@keyframes scanline {
+  0% {
+    background-position: 0 -30%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    background-position: 0 130%;
+    opacity: 0;
+  }
+}
+
+@keyframes ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-caution) 32%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-caution) 0%, transparent);
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-ink-900);
+    color: var(--color-hi);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* One focus treatment everywhere — keyboard users get an obvious, on-brand ring. */
+  :focus-visible {
+    outline: 2px solid var(--color-clinical-lit);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-clinical-lit) 35%, transparent);
+  }
+
+  /* Numbers never reflow while they animate. */
+  .tnum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@utility hairline {
+  border: 1px solid var(--color-line);
+}
+
+/* The acquisition sweep: a soft band with one bright leading edge, travelling
+   top → bottom across the viewport while inference runs. */
+@utility scan-band {
+  background-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in oklab, var(--color-clinical-lit) 18%, transparent) 60%,
+    color-mix(in oklab, var(--color-clinical-lit) 85%, transparent) 96%,
+    color-mix(in oklab, var(--color-clinical-lit) 95%, transparent) 100%
+  );
+  background-size: 100% 24%;
+  background-repeat: no-repeat;
+}
+
+/* Faint horizontal raster — a console cue, used only inside the scan viewport. */
+@utility raster {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--color-clinical-lit) 4%, transparent) 0 1px,
+    transparent 1px 3px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
