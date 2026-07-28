@@ -23,6 +23,19 @@ Most "pneumonia detector" projects report a single accuracy number on the same d
 | Does it know when it's unsure? | **Abstention-based triage** — escalate uncertain cases | Decides 93% of cases at **0.971 accuracy**, escalates the rest |
 | Is it fair across subgroups? | **Subgroup audit** by view / sex / age | Found a real **PA-view weakness** (sens 0.615) — disclosed |
 | Where does it look? | **Grad-CAM** heatmaps | Localizes to lung opacities; some false alarms driven by image borders — disclosed |
+| Does the *deployed* model match the evaluated one? | Re-scored the whole test split through the **serving** path | Caught a train/serve preprocessing skew costing **15 true positives** — fixed |
+
+---
+
+## The live demo
+
+Two tabs, both driven by real data — no mock numbers anywhere.
+
+**Analyse** — drop in a chest X-ray (or paste one, or pick from four bundled held-out test studies so you don't need your own). You get the model call, calibrated confidence, where the case landed on the 0→1 probability axis relative to the tuned threshold, the triage disposition, and a Grad-CAM overlay with fade and side-by-side comparison.
+
+One of the bundled samples is deliberately a **borderline case that the model refuses to decide** — it lands in the abstention band and escalates. That is the product working, not failing, and it is the single thing most worth clicking.
+
+**Model Report** — the evaluation in this README, made interactive from the exported metrics (`src/export_report.py`). Its centerpiece is a **threshold explorer**: a 201-point real sweep where dragging the operating point updates sensitivity, specificity, the confusion matrix and a moving dot on the ROC curve, so you can see exactly what a threshold change costs in missed cases versus false alarms.
 
 ---
 
@@ -114,22 +127,46 @@ Chest X-ray (JPEG/PNG)
 
 | Layer | Tech | Host |
 |---|---|---|
-| Frontend | React 18 + Vite + Tailwind | Vercel |
+| Frontend | React 18 + **TypeScript** + Vite + Tailwind v4, Recharts, Framer Motion | Vercel |
 | API | FastAPI + **onnxruntime** (TensorFlow-free) | Render |
 | Model artifacts | ONNX backbone + NumPy head weights | Hugging Face Hub |
 
 **Why ONNX?** TensorFlow needs ~600–700 MB at startup and doesn't fit Render's 512 MB free tier. The DenseNet backbone is served via onnxruntime and the small head + Grad-CAM are reimplemented in NumPy — **validated numerically identical to the original TF model** (prediction diff ~1e-8, Grad-CAM correlation 1.0). Runtime footprint dropped to **134 MB** and inference to **~0.1s/image**.
+
+### The train/serve skew that cost 15 true positives
+
+Dropping TensorFlow from the serving path meant reimplementing preprocessing — and that is where the model quietly got worse.
+
+Training and evaluation resize with `tf.image.resize`, which is bilinear **without** antialiasing. The TF-free server used `PIL.Image.resize(..., BILINEAR)`, which **does** antialias when downscaling. Same nominal operation, different operator, different model. A spot check at deploy time compared a handful of images, saw differences of ~1e-4, and passed.
+
+Re-scoring the **entire 586-image test split** through both paths told a different story:
+
+| Resize used | Sensitivity | Specificity | ROC-AUC | False negatives |
+|---|---|---|---|---|
+| PIL bilinear (what was being served) | 0.9089 | 0.9557 | 0.9830 | 39 |
+| `tf.image`-equivalent (the fix) | **0.9439** | 0.9620 | 0.9863 | **24** |
+
+**15 recovered true positives out of 428**, 24 flipped decisions, and a worst-case per-image probability shift of 0.666. The served model had been ~3.5 sensitivity points below the model this README reports.
+
+The fix is a ~15-line NumPy reimplementation of `tf.image.resize` (half-pixel centers, no antialias) in `api/inference.py` — no new dependency, runtime stays TF- and OpenCV-free. `src/export_report.py` imports the same function so the dashboard and the API cannot drift apart again.
+
+**The lesson, and why it's in this README:** a preprocessing change must be validated over the whole evaluation set, not sampled. Near-threshold cases are exactly the ones that flip, and they are invisible to a spot check of confident examples.
 
 ---
 
 ## Repository layout
 
 ```
-src/          config, data pipeline, model, training, evaluation,
-              calibration, gradcam, dashboard  (the ML work)
-api/          FastAPI service — main.py, inference.py (onnxruntime),
-              onnx_head.py (NumPy head + Grad-CAM), Dockerfile
-frontend/     React + Vite single-page app
+src/          config, data pipeline, model, training, evaluation, calibration,
+              gradcam, dashboard, export_report  (the ML work)
+api/          FastAPI service — main.py, inference.py (onnxruntime + the
+              tf.image-equivalent resize), onnx_head.py (NumPy head +
+              Grad-CAM), Dockerfile
+frontend/     React + TypeScript + Vite app
+  src/components/analyze/   upload → predict → result → Grad-CAM
+  src/components/report/    interactive model report (Recharts)
+  src/data/model_report.json   real metrics, exported by src/export_report.py
+  public/samples/           four held-out test studies for the gallery
 deploy/       convert_to_onnx.py, render.yaml, DEPLOY.md
 models/        (gitignored) trained artifacts — hosted on HF Hub
 assets/       evaluation figures embedded above
@@ -147,9 +184,12 @@ uvicorn api.main:app --port 8000                     # docs at http://localhost:
 
 # --- Frontend ---
 cd frontend && npm install
-echo "VITE_API_URL=http://localhost:8000" > .env
-npm run dev
+npm run dev                                          # http://localhost:5173
 ```
+
+The frontend defaults to `http://localhost:8000`, so no `.env` is needed for local
+development. To point it elsewhere, set `VITE_API_URL` (see `frontend/.env.example`).
+`npm run build` typechecks (`tsc --noEmit`) before building.
 
 Reproduce the ML pipeline (needs the datasets — see `data/DOWNLOAD.md`):
 
@@ -158,6 +198,7 @@ PYTHONIOENCODING=utf-8 python -m src.train        # train
 PYTHONIOENCODING=utf-8 python -m src.evaluate     # threshold + internal test
 PYTHONIOENCODING=utf-8 python -m src.evaluate --external --sample 3000
 PYTHONIOENCODING=utf-8 python -m src.evaluate --fairness --triage
+PYTHONIOENCODING=utf-8 python -m src.export_report   # → frontend model report data
 ```
 
 Deployment steps: [deploy/DEPLOY.md](deploy/DEPLOY.md).

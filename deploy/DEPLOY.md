@@ -1,6 +1,6 @@
 # PneumoScan — Deployment (Phase 8)
 
-Public demo = **Render** (API, Docker) + **Vercel** (React frontend).
+Public demo = **Render** (API, Docker) + **Vercel** (React + TypeScript frontend).
 The trained model lives in a **free HF Hub model repo**
 (<https://huggingface.co/decstzz06/pneumoscan-model>) and is pulled into the API
 image at build time, so nothing large is committed to git.
@@ -38,7 +38,8 @@ git push -u origin main
    Docs at `/docs`.
 
 > Free tier sleeps after ~15 min idle; the first request after a nap cold-starts
-> (~50s). Fine for a demo — the frontend shows a spinner.
+> (~50s). Fine for a demo — the frontend polls `/health` on load and shows an
+> explicit "waking up" notice with progress, rather than an unexplained spinner.
 
 **Manual alternative (no Blueprint):** New → Web Service → connect repo →
 Runtime **Docker**, Dockerfile path `./api/Dockerfile`, context `.`, plan Free,

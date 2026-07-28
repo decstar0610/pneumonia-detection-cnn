@@ -26,6 +26,7 @@
   `GlobalAveragePooling → Dense(512, ReLU) → BatchNorm → Dropout(0.3) → Dense(256, ReLU) → BatchNorm → Dropout(0.3) → Dense(1, sigmoid)`.
 - **Training:** two-stage transfer learning (frozen-backbone head training, then top-conv-block fine-tuning). The **frozen-backbone stage produced the best validation AUC**; fine-tuning did not improve on it. Binary cross-entropy with class weights (~1.85 / 0.69), EarlyStopping and ReduceLROnPlateau on validation ROC-AUC.
 - **Preprocessing:** resize to 224×224, scale to [0,1], ImageNet mean/std normalization ("torch" mode, matching DenseNet).
+  **The resize operator is part of the model.** Training and evaluation use `tf.image.resize` (bilinear, *no* antialiasing). The serving path reimplements exactly that in NumPy. An earlier revision used `PIL.Image.resize(..., BILINEAR)`, which antialiases when downscaling; over the full 586-image test split that cost **15 true positives** (sensitivity 0.9089 vs 0.9439) even though a few-image spot check showed differences of only ~1e-4. Any reimplementation of this pipeline must reproduce the non-antialiased resize, and must be validated over a whole evaluation set rather than sampled.
 - **Decision pipeline:** raw sigmoid → temperature calibration (T = 0.72) → operating threshold (calibrated 0.265) → triage zone.
 - **Serving:** DenseNet121 backbone exported to ONNX; head + Grad-CAM reimplemented in NumPy. Validated numerically identical to the TensorFlow original (prediction |Δ| ~1e-8; Grad-CAM correlation 1.0).
 
@@ -37,7 +38,7 @@
 
 ## Evaluation
 
-- **Internal test** (held-out split, same distribution): sensitivity 0.942, specificity 0.962, precision 0.985, accuracy 0.947, ROC-AUC 0.986, PR-AUC 0.995.
+- **Internal test** (held-out split, same distribution): sensitivity 0.942, specificity 0.962, precision 0.985, accuracy 0.947, ROC-AUC 0.986, PR-AUC 0.995. The deployed API was re-scored end-to-end against this split and now matches it; see the preprocessing note under Model details.
 - **External validation** — RSNA Pneumonia Detection Challenge (**adult**), n = 3,000, evaluated at the **frozen** internal threshold: sensitivity 0.907, specificity 0.467, ROC-AUC 0.782, precision 0.331.
 - **Calibration:** temperature scaling reduced test ECE 0.080 → 0.072.
 - **Triage:** with an abstention band, the model decides 93% of cases at 0.971 accuracy and escalates the rest.
@@ -58,11 +59,20 @@ Primary metric is **sensitivity on the pneumonia class** — accuracy is mislead
 
 5. **Sex/age subgroups** are stable in this audit (~0.88–0.93), but the audit is limited to the RSNA metadata available and is not a substitute for prospective validation.
 
+6. **The serving pipeline is fragile to preprocessing changes.** The reported metrics hold only for the exact resize/normalization above. This is not hypothetical — it has already gone wrong once (see Model details), and the failure was silent: no error, no obvious degradation on confident cases, just a measurably worse model on the ones near the decision boundary.
+
 ## Ethical considerations
 
 - Automation bias is a real risk: a plausible label plus a plausible-looking heatmap can over-persuade. The abstention/triage design and the prominent in-product disclaimer are partial mitigations, not solutions.
 - No patient-identifiable data is stored by the demo; uploads are processed in-memory for a single prediction.
 - This model has **not** been reviewed or cleared by any regulatory body (e.g., FDA/CE) and carries no such claim.
+
+## Revision history
+
+| Date | Change |
+|---|---|
+| 2026-07-28 | Serving preprocessing corrected to match training (`tf.image`-equivalent resize). No change to the trained weights, the calibration temperature, or the operating threshold — the deployed model now reproduces the evaluated metrics instead of sitting ~3.5 sensitivity points below them. |
+| 2026-07-27 | Serving moved from TensorFlow to ONNX + NumPy (numerically validated); model card and README first published. |
 
 ## How to cite / reproduce
 
